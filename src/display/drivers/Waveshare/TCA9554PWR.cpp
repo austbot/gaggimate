@@ -8,10 +8,18 @@ uint8_t I2C_Read_EXIO(uint8_t REG) // Read the value of the TCA9554PWR register 
     Wire.write(REG);
     uint8_t result = Wire.endTransmission();
     if (result != 0) {
-        printf("Data Transfer Failure !!!\r\n");
+        printf("TCA9554PWR I2C read transmission failure: %d\r\n", result);
+        return 0xFF; // Return error value
     }
-    Wire.requestFrom(TCA9554_ADDRESS, 1);
+    
+    uint8_t bytesReceived = Wire.requestFrom(TCA9554_ADDRESS, 1);
+    if (bytesReceived != 1) {
+        printf("TCA9554PWR I2C read request failure: expected 1 byte, got %d\r\n", bytesReceived);
+        return 0xFF; // Return error value
+    }
+    
     uint8_t bitsStatus = Wire.read();
+    printf("TCA9554PWR read reg 0x%02X: 0x%02X\r\n", REG, bitsStatus);
     return bitsStatus;
 }
 uint8_t I2C_Write_EXIO(uint8_t REG, uint8_t Data) // Write Data to the REG register of the TCA9554PWR
@@ -21,9 +29,10 @@ uint8_t I2C_Write_EXIO(uint8_t REG, uint8_t Data) // Write Data to the REG regis
     Wire.write(Data);
     uint8_t result = Wire.endTransmission();
     if (result != 0) {
-        printf("Data write failure!!!\r\n");
+        printf("TCA9554PWR I2C write failure - reg: 0x%02X, data: 0x%02X, error: %d\r\n", REG, Data, result);
         return -1;
     }
+    printf("TCA9554PWR write reg 0x%02X: 0x%02X\r\n", REG, Data);
     return 0;
 }
 /********************************************************** Set EXIO mode
@@ -32,7 +41,14 @@ void Mode_EXIO(uint8_t Pin, uint8_t State) // Set the mode of the TCA9554PWR Pin
                                            // mode). State: 0= Output mode 1= input mode
 {
     uint8_t bitsStatus = I2C_Read_EXIO(TCA9554_CONFIG_REG);
-    uint8_t Data = (0x01 << (Pin - 1)) | bitsStatus;
+    uint8_t Data;
+    
+    if (State == TCA9554_INPUT_REG) { // Set as input (1)
+        Data = (0x01 << (Pin - 1)) | bitsStatus;
+    } else { // Set as output (0)
+        Data = (~(0x01 << (Pin - 1))) & bitsStatus;
+    }
+    
     uint8_t result = I2C_Write_EXIO(TCA9554_CONFIG_REG, Data);
     if (result != 0) {
         printf("I/O Configuration Failure !!!\r\n");
@@ -96,9 +112,21 @@ void Set_Toggle(uint8_t Pin) // Flip the level of the TCA9554PWR Pin
 }
 /********************************************************* TCA9554PWR Initializes the device
  * ***********************************************************/
-void TCA9554PWR_Init(
+int TCA9554PWR_Init(
     uint8_t PinState) // Set the seven pins to PinState state, for example :PinState=0x23, 0010 0011 State  (Output mode or input
                       // mode) 0= Output mode 1= Input mode. The default value is output mode
+                      // Returns 0 on success, -1 on failure
 {
-    Mode_EXIOS(PinState);
+    // Try to read the device ID to verify communication
+    uint8_t config_reg = I2C_Read_EXIO(TCA9554_CONFIG_REG);
+    
+    // Set the configuration
+    int result = I2C_Write_EXIO(TCA9554_CONFIG_REG, PinState);
+    if (result != 0) {
+        printf("TCA9554PWR initialization failed\r\n");
+        return -1;
+    }
+    
+    printf("TCA9554PWR initialized successfully\r\n");
+    return 0;
 }

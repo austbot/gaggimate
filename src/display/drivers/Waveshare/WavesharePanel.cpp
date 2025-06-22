@@ -21,10 +21,11 @@ void ST7701_CS_Dis() {
 }
 
 void ST7701_Reset() {
+    Serial.println("WavesharePanel: Performing LCD reset");
     Set_EXIO(EXIO_PIN1, Low);
-    delay(20);
+    delay(120);  // Longer reset pulse for stability
     Set_EXIO(EXIO_PIN1, High);
-    delay(10);
+    delay(120);  // Longer delay after reset
 }
 
 WavesharePanel::WavesharePanel(/* args */)
@@ -44,28 +45,55 @@ WavesharePanel::~WavesharePanel() {
 
 bool WavesharePanel::begin(WS_RGBPanel_Color_Order order) {
     if (_panelDrv) {
+        Serial.println("WavesharePanel: Already initialized");
         return true;
     }
 
+    Serial.println("WavesharePanel: Starting initialization...");
     _order = order;
 
+    Serial.println("WavesharePanel: Setting up backlight pin");
     pinMode(WS_BOARD_TFT_BL, OUTPUT);
     digitalWrite(WS_BOARD_TFT_BL, LOW);
 
+    Serial.println("WavesharePanel: Initializing I2C and TCA9554PWR");
     I2C_Init();
     delay(120);
-    TCA9554PWR_Init(0x00);
-    Set_EXIO(EXIO_PIN8, Low);
-
-    if (!initTouch()) {
-        Serial.println("Touch chip not found.");
+    
+    // Initialize TCA9554PWR GPIO expander
+    if (TCA9554PWR_Init(0x00) != 0) {
+        Serial.println("Failed to initialize TCA9554PWR GPIO expander");
         return false;
     }
+    
+    // Configure GPIO expander pins as outputs
+    Mode_EXIO(EXIO_PIN1, TCA9554_OUTPUT_REG); // LCD_RST
+    Mode_EXIO(EXIO_PIN2, TCA9554_OUTPUT_REG); // TP_RST  
+    Mode_EXIO(EXIO_PIN3, TCA9554_OUTPUT_REG); // LCD_CS
+    Mode_EXIO(EXIO_PIN4, TCA9554_OUTPUT_REG); // SD_CS
+    Mode_EXIO(EXIO_PIN8, TCA9554_OUTPUT_REG); // Buzzer control
+    
+    // Set initial states
+    Set_EXIO(EXIO_PIN8, Low);  // Buzzer off
+    Set_EXIO(EXIO_PIN4, High); // SD_CS high (deselected)
+    Set_EXIO(EXIO_PIN3, High); // LCD_CS high initially
+    Set_EXIO(EXIO_PIN1, High); // LCD_RST high
+    Set_EXIO(EXIO_PIN2, High); // TP_RST high
 
+    Serial.println("WavesharePanel: Attempting touch initialization");
+    if (!initTouch()) {
+        Serial.println("Touch chip not found - display will work without touch functionality");
+    } else {
+        Serial.println("Touch chip initialized successfully");
+    }
+
+    Serial.println("WavesharePanel: Initializing display bus");
     initBUS();
 
+    Serial.println("WavesharePanel: Getting model information");
     getModel();
 
+    Serial.println("WavesharePanel: Initialization completed successfully");
     return true;
 }
 
@@ -290,9 +318,11 @@ uint16_t WavesharePanel::getBattVoltage() {
 
 void WavesharePanel::initBUS() {
     if (_panelDrv) {
+        Serial.println("WavesharePanel: Bus already initialized");
         return;
     }
 
+    Serial.println("WavesharePanel: Starting bus initialization");
     ST7701_Reset();
 
     spi_bus_config_t buscfg = {.mosi_io_num = WS_BOARD_TFT_MOSI,
@@ -890,9 +920,28 @@ void WavesharePanel::initBUS() {
             },
     };
 
-    ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &_panelDrv));
-    ESP_ERROR_CHECK(esp_lcd_panel_reset(_panelDrv));
-    ESP_ERROR_CHECK(esp_lcd_panel_init(_panelDrv));
+    Serial.println("WavesharePanel: Creating RGB panel");
+    esp_err_t ret = esp_lcd_new_rgb_panel(&panel_config, &_panelDrv);
+    if (ret != ESP_OK) {
+        Serial.printf("Failed to create RGB panel: %d\n", ret);
+        return;
+    }
+    
+    Serial.println("WavesharePanel: Resetting RGB panel");
+    ret = esp_lcd_panel_reset(_panelDrv);
+    if (ret != ESP_OK) {
+        Serial.printf("Failed to reset RGB panel: %d\n", ret);
+        return;
+    }
+    
+    Serial.println("WavesharePanel: Initializing RGB panel");
+    ret = esp_lcd_panel_init(_panelDrv);
+    if (ret != ESP_OK) {
+        Serial.printf("Failed to initialize RGB panel: %d\n", ret);
+        return;
+    }
+    
+    Serial.println("WavesharePanel: RGB panel initialization completed successfully");
 }
 
 bool WavesharePanel::initTouch() {

@@ -189,10 +189,16 @@ void DefaultUI::onProfileSelect() {
 }
 
 void DefaultUI::setupPanel() const {
+    Serial.println("Starting display driver detection...");
+    
     if (LilyGoDriver::getInstance()->isCompatible()) {
+        Serial.println("LilyGO T-RGB board detected (GPIO 8 HIGH)");
         LilyGoDriver::getInstance()->init();
     } else if (WaveshareDriver::getInstance()->isCompatible()) {
+        Serial.println("Waveshare ESP32-S3 Touch LCD board detected (GPIO 8 LOW or no LilyGO board)");
         WaveshareDriver::getInstance()->init();
+    } else {
+        Serial.println("ERROR: No compatible display driver found!");
     }
     ui_init();
 }

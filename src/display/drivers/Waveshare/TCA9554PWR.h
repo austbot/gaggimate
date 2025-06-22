@@ -36,8 +36,8 @@
 
 /*****************************************************  Operation register REG
  * ****************************************************/
-uint8_t I2C_Read_EXIO(uint8_t REG);               // Read the value of the TCA9554PWR register REG
-uint8_t I2C_Read_EXIO(uint8_t REG, uint8_t Data); // Write Data to the REG register of the TCA9554PWR
+uint8_t I2C_Read_EXIO(uint8_t REG);                // Read the value of the TCA9554PWR register REG
+uint8_t I2C_Write_EXIO(uint8_t REG, uint8_t Data); // Write Data to the REG register of the TCA9554PWR
 /********************************************************** Set EXIO mode
  * **********************************************************/
 void Mode_EXIO(uint8_t Pin, uint8_t State); // Set the mode of the TCA9554PWR Pin. The default is Output mode (output mode or
@@ -59,6 +59,7 @@ void Set_EXIOS(
 void Set_Toggle(uint8_t Pin); // Flip the level of the TCA9554PWR Pin
 /********************************************************* TCA9554PWR Initializes the device
  * ***********************************************************/
-void TCA9554PWR_Init(uint8_t PinState = 0x00); // Set the seven pins to PinState state, for example :PinState=0x23, 0010 0011
+int TCA9554PWR_Init(uint8_t PinState = 0x00); // Set the seven pins to PinState state, for example :PinState=0x23, 0010 0011
                                                // State (the highest bit is not used) (Output mode or input mode) 0= Output mode
                                                // 1= Input mode. The default value is output mode
+                                               // Returns 0 on success, -1 on failure
